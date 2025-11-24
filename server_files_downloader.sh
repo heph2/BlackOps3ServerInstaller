@@ -55,7 +55,8 @@ fi
 
 #Downloading server files
 current_dir=$(pwd)
-steamcmd +force_install_dir "$current_dir" +login anonymous +@sSteamCmdForcePlatformType windows +app_update 545990 validate +quit
+read -p "Steam Username: " steam_user
+steamcmd +force_install_dir "$current_dir" +login $steam_user +@sSteamCmdForcePlatformType windows +app_update 545990 validate +quit
 
 #deleting unecessary folders
 rm -rf steamapps
