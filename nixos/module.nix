@@ -22,8 +22,9 @@ let
     set sv_hostnamefake "${cfg.serverName}"
     set sv_description "${cfg.description}"
     set sv_maxclients ${toString cfg.maxClients}
-    ${optionalString (cfg.password != "") "set g_password \"${cfg.password}\""}
-    ${optionalString (cfg.rconPassword != "") "set rcon_password \"${cfg.rconPassword}\""}
+    ${optionalString (cfg.password != "") ''set g_password "${cfg.password}"''}
+    ${optionalString (cfg.rconPassword != "")
+    ''set rcon_password "${cfg.rconPassword}"''}
 
     // Bot Settings
     set bot_difficulty ${toString cfg.botDifficulty}
@@ -37,8 +38,14 @@ let
     // Map Rotation
     ${cfg.extraConfig}
 
-    set sv_maprotation "${concatStringsSep " " (map (m: "gametype ${m.gametype} map ${m.map}") cfg.mapRotation)}"
+    set sv_maprotation "${
+      concatStringsSep " "
+      (map (m: "gametype ${m.gametype} map ${m.map}") cfg.mapRotation)
+    }"
   '';
+
+  # Server directory (where the actual game files are)
+  serverDir = "${cfg.dataDir}/UnrankedServer";
 
   # Launch script
   launchScript = pkgs.writeShellScriptBin "bo3-server-launch" ''
@@ -48,7 +55,8 @@ let
     export WINEPREFIX="${cfg.dataDir}/.wine"
     export HOME="${cfg.dataDir}"
 
-    cd "${cfg.dataDir}"
+    # Change to the UnrankedServer directory where the game files are
+    cd "${serverDir}"
 
     # Determine executable based on client type
     case "${cfg.client}" in
@@ -66,13 +74,14 @@ let
     ARGS="-headless"
     ARGS="$ARGS +set net_port ${toString cfg.port}"
     ARGS="$ARGS +set logfile 2"
-    ${optionalString (cfg.modId != "") ''ARGS="$ARGS +set fs_game \"mods/${cfg.modId}\""''}
+    ${optionalString (cfg.modId != "")
+    ''ARGS="$ARGS +set fs_game \"mods/${cfg.modId}\""''}
 
     # Use custom config if provided, otherwise use generated
     ${if cfg.configFile != null then ''
       ARGS="$ARGS +exec ${cfg.configFile}"
     '' else ''
-      cp -f ${serverConfig} "${cfg.dataDir}/zone/server_nixos.cfg"
+      cp -f ${serverConfig} "${serverDir}/zone/server_nixos.cfg"
       ARGS="$ARGS +exec server_nixos.cfg"
     ''}
 
@@ -130,12 +139,25 @@ let
     fi
 
     echo ""
+    echo "=== Copying client executables to server directory ==="
+    # SteamCMD installs to UnrankedServer, so copy clients there
+    if [ -f "${cfg.dataDir}/boiii.exe" ]; then
+      cp -f "${cfg.dataDir}/boiii.exe" "${serverDir}/boiii.exe"
+      echo "Copied boiii.exe to server directory"
+    fi
+    if [ -f "${cfg.dataDir}/t7x.exe" ]; then
+      cp -f "${cfg.dataDir}/t7x.exe" "${serverDir}/t7x.exe"
+      echo "Copied t7x.exe to server directory"
+    fi
+
+    echo ""
     echo "=== Initializing Wine prefix ==="
     ${pkgs.wineWowPackages.stable}/bin/wineboot --init
 
     echo ""
     echo "=== Creating directory structure ==="
-    mkdir -p zone
+    mkdir -p "${cfg.dataDir}/zone"
+    mkdir -p "${serverDir}/zone"
     mkdir -p "${cfg.dataDir}/.wine/drive_c/users/$(whoami)/AppData/Local/boiii"
 
     echo ""
@@ -144,8 +166,7 @@ let
     echo "Start the server with: systemctl start bo3-server"
   '';
 
-in
-{
+in {
   options.services.bo3-server = {
     enable = mkEnableOption "Black Ops 3 dedicated server";
 
@@ -170,13 +191,15 @@ in
     client = mkOption {
       type = types.enum [ "boiii" "t7x" "official" "all" ];
       default = "boiii";
-      description = "Which client to use (boiii, t7x, official, or all for installation)";
+      description =
+        "Which client to use (boiii, t7x, official, or all for installation)";
     };
 
     steamUser = mkOption {
       type = types.str;
       default = "";
-      description = "Steam username for downloading server files (required for installation)";
+      description =
+        "Steam username for downloading server files (required for installation)";
     };
 
     port = mkOption {
@@ -265,10 +288,22 @@ in
         };
       });
       default = [
-        { gametype = "tdm"; map = "mp_biodome"; }
-        { gametype = "tdm"; map = "mp_spire"; }
-        { gametype = "dom"; map = "mp_sector"; }
-        { gametype = "dom"; map = "mp_apartments"; }
+        {
+          gametype = "tdm";
+          map = "mp_biodome";
+        }
+        {
+          gametype = "tdm";
+          map = "mp_spire";
+        }
+        {
+          gametype = "dom";
+          map = "mp_sector";
+        }
+        {
+          gametype = "dom";
+          map = "mp_apartments";
+        }
       ];
       description = "Map rotation list";
     };
@@ -276,7 +311,8 @@ in
     configFile = mkOption {
       type = types.nullOr types.str;
       default = null;
-      description = "Custom config file to use instead of generated one (e.g., server.cfg, server_zm.cfg)";
+      description =
+        "Custom config file to use instead of generated one (e.g., server.cfg, server_zm.cfg)";
     };
 
     extraConfig = mkOption {
@@ -314,7 +350,7 @@ in
         Type = "simple";
         User = cfg.user;
         Group = cfg.group;
-        WorkingDirectory = cfg.dataDir;
+        WorkingDirectory = serverDir;
         ExecStart = "${launchScript}/bin/bo3-server-launch";
         Restart = "on-failure";
         RestartSec = 10;
@@ -324,7 +360,7 @@ in
         PrivateTmp = true;
         ProtectSystem = "strict";
         ProtectHome = true;
-        ReadWritePaths = [ cfg.dataDir ];
+        ReadWritePaths = [ cfg.dataDir serverDir ];
       };
     };
 
@@ -338,6 +374,7 @@ in
         Type = "oneshot";
         User = cfg.user;
         Group = cfg.group;
+        WorkingDirectory = cfg.dataDir;
         ExecStart = "${installScript}/bin/bo3-server-install";
         StandardInput = "tty-force";
         StandardOutput = "inherit";
@@ -355,9 +392,6 @@ in
     };
 
     # Make install script available system-wide
-    environment.systemPackages = [
-      installScript
-      launchScript
-    ];
+    environment.systemPackages = [ installScript launchScript ];
   };
 }
