@@ -16,9 +16,10 @@ This repository merges configurations and scripts from these projects:\
 
 **There doesn't seem to be a way to run zombies server using the official BO3 Server Launcher. Currently zombies servers are only available using custom clients**
 
-## Table of Contents  
+## Table of Contents
 - [How to install on Windows](#how-to-install-on-windows)
 - [How to install on Linux (Ubuntu, Debian, Arch)](#how-to-install-on-linux-ubuntu-debian-arch)
+- [How to install on NixOS](#how-to-install-on-nixos)
 - [EZZBOIII Server Additional Steps](#ezzboiii-server-additional-steps)
 - [Cool, but Zombies?](#cool-but-zombies)
 - [Mods?](#mods)
@@ -45,6 +46,131 @@ Official BO3 servers only aimed for Windows support, but [Wine](https://www.wine
 6. **(For Custom Clients)** Launch your server using `CustomClient_Server.sh boiii` if you want to use EZBOIII or `CustomClient_Server.sh t7x` if you want to use T7X
 7. **(For official servers on vanilla BO3)** Launch your server using `Launch_Server.sh`
 5. Done!
+
+## How to install on NixOS
+
+NixOS support is provided via a Nix flake with both standalone scripts and a NixOS module for systemd service integration.
+
+### Option 1: Using Nix Flakes (Recommended)
+
+```bash
+# Clone this repository
+git clone https://github.com/framilano/BlackOps3ServerInstaller.git
+cd BlackOps3ServerInstaller
+
+# Install the server (you'll be prompted for Steam credentials)
+nix run .#install
+
+# Start the server
+nix run .#server -- --mp          # Multiplayer
+nix run .#server -- --zm          # Zombies
+nix run .#server -- --cp          # Campaign/Coop
+
+# Or with custom options
+nix run .#server -- --dir ~/bo3-server --client boiii --port 27017 --mp
+```
+
+### Option 2: Using nix-shell (Traditional)
+
+```bash
+# Enter the development shell
+nix-shell
+
+# Run the installation script
+./nixos/install.sh
+
+# Launch the server
+./nixos/launch.sh --mp
+./nixos/launch.sh --help    # Show all options
+```
+
+### Option 3: NixOS Module (Systemd Service)
+
+Add the flake to your NixOS configuration:
+
+```nix
+# flake.nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    bo3-server.url = "github:framilano/BlackOps3ServerInstaller";
+  };
+
+  outputs = { nixpkgs, bo3-server, ... }: {
+    nixosConfigurations.myserver = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        bo3-server.nixosModules.default
+        ./configuration.nix
+      ];
+    };
+  };
+}
+```
+
+Configure the server in your `configuration.nix`:
+
+```nix
+{ config, pkgs, ... }:
+{
+  services.bo3-server = {
+    enable = true;
+    steamUser = "your_steam_username";  # Required for installation
+    client = "boiii";                    # boiii, t7x, or official
+    port = 27017;
+    serverName = "^5My ^7NixOS Server";
+    description = "Powered by NixOS";
+    maxClients = 18;
+    openFirewall = true;
+
+    # Map rotation
+    mapRotation = [
+      { gametype = "tdm"; map = "mp_biodome"; }
+      { gametype = "dom"; map = "mp_sector"; }
+      { gametype = "tdm"; map = "mp_spire"; }
+    ];
+
+    # Or use a custom config file
+    # configFile = "server_zm.cfg";
+  };
+}
+```
+
+Then install and start the server:
+
+```bash
+# First, run the installation (requires TTY for Steam login)
+sudo systemctl start bo3-server-install
+
+# Start the server
+sudo systemctl start bo3-server
+
+# Enable auto-start on boot
+sudo systemctl enable bo3-server
+
+# Check logs
+journalctl -u bo3-server -f
+```
+
+### NixOS Module Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enable` | bool | false | Enable the BO3 server |
+| `dataDir` | path | /var/lib/bo3-server | Server installation directory |
+| `client` | enum | "boiii" | Client: boiii, t7x, official |
+| `steamUser` | string | "" | Steam username for installation |
+| `port` | int | 27017 | Game server port |
+| `serverName` | string | "^5NixOS ^7Black Ops 3 Server" | Server name |
+| `maxClients` | int | 18 | Maximum players |
+| `password` | string | "" | Server password |
+| `rconPassword` | string | "" | RCON password |
+| `modId` | string | "" | Steam Workshop mod ID |
+| `botDifficulty` | int (0-3) | 1 | Bot difficulty |
+| `botMinPlayers` | int | 0 | Fill with bots up to this count |
+| `mapRotation` | list | [...] | Map rotation list |
+| `configFile` | string | null | Use custom config instead |
+| `openFirewall` | bool | false | Open firewall ports |
 
 ## EZZBOIII Server Additional Steps
 EZZBOIII requires some additional files in your `%APPDATA%/Local` folder to create a new server. Extract [`boiii-server-files.zip`](https://github.com/framilano/BlackOps3ServerInstaller/blob/main/boiii-server-files.zip) and move the extracted `boiii` folder:
