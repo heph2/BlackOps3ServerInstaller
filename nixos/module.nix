@@ -99,7 +99,7 @@ let
     ARGS="$ARGS +set net_port ${toString cfg.port}"
     ARGS="$ARGS +set logfile 2"
     ${optionalString (cfg.modId != "")
-    ''ARGS="$ARGS +set fs_game mods/${cfg.modId}"''}
+    ''ARGS="$ARGS +set fs_game ${cfg.modId}"''}
 
     # Determine config file based on gameMode if not explicitly set
     ${if cfg.configFile != null then ''
