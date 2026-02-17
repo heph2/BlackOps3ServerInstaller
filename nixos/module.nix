@@ -27,7 +27,7 @@ let
     ''set rcon_password "${cfg.rconPassword}"''}
 
     // Server Settings
-    set sv_lobby_mode "mp"
+    set sv_lobby_mode "${cfg.gameMode}"
     set sv_skip_lobby "${if cfg.skipLobby then "1" else "0"}"
     set sv_lanonly "${if cfg.lanOnly then "1" else "0"}"
 
@@ -41,7 +41,8 @@ let
     set sv_floodprotect ${if cfg.floodProtect then "1" else "0"}
 
     // Load gametype settings
-    exec "gamedata/gamesettings/mp/gamesettings_${(builtins.head cfg.mapRotation).gametype}.cfg"
+    exec "gamedata/gamesettings/${cfg.gameMode}/gamesettings_${(builtins.head cfg.mapRotation).gametype}.cfg"
+    ${optionalString (cfg.gameMode == "zm") ''exec "gamedata/configs/common/default_xboxlive.cfg"''}
 
     // Map Rotation
     ${cfg.extraConfig}
@@ -295,6 +296,12 @@ in {
       type = types.bool;
       default = false;
       description = "Keep server from broadcasting to public list (LAN/Tailscale only)";
+    };
+
+    gameMode = mkOption {
+      type = types.enum [ "mp" "zm" "cp" ];
+      default = "mp";
+      description = "Game mode: mp (multiplayer), zm (zombies), cp (campaign/coop)";
     };
 
     mapRotation = mkOption {
