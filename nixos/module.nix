@@ -26,6 +26,11 @@ let
     ${optionalString (cfg.rconPassword != "")
     ''set rcon_password "${cfg.rconPassword}"''}
 
+    // Server Settings
+    set sv_lobby_mode "mp"
+    set sv_skip_lobby "${if cfg.skipLobby then "1" else "0"}"
+    set sv_lanonly "${if cfg.lanOnly then "1" else "0"}"
+
     // Bot Settings
     set bot_difficulty ${toString cfg.botDifficulty}
     set bot_minplayers ${toString cfg.botMinPlayers}
@@ -272,6 +277,18 @@ in {
       type = types.bool;
       default = true;
       description = "Enable flood protection";
+    };
+
+    skipLobby = mkOption {
+      type = types.bool;
+      default = true;
+      description = "Skip lobby and load map immediately (required for dedicated servers to accept connections)";
+    };
+
+    lanOnly = mkOption {
+      type = types.bool;
+      default = false;
+      description = "Keep server from broadcasting to public list (LAN/Tailscale only)";
     };
 
     mapRotation = mkOption {
