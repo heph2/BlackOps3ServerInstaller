@@ -40,6 +40,9 @@ let
     set scr_game_killcam ${if cfg.killcam then "1" else "0"}
     set sv_floodprotect ${if cfg.floodProtect then "1" else "0"}
 
+    // Load gametype settings
+    exec "gamedata/gamesettings/mp/gamesettings_${(builtins.head cfg.mapRotation).gametype}.cfg"
+
     // Map Rotation
     ${cfg.extraConfig}
 
@@ -47,6 +50,9 @@ let
       concatStringsSep " "
       (map (m: "gametype ${m.gametype} map ${m.map}") cfg.mapRotation)
     }"
+
+    // Start map rotation
+    map_rotate
   '';
 
   # Server directory (where the actual game files are)
